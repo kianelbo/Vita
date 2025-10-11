@@ -1,13 +1,10 @@
-import { Router, Request, Response } from "express";
+import { Router, Response } from "express";
+import { authenticate, AuthRequest } from "../middleware/auth";
 import { prisma } from "../prisma/client";
 
 const router = Router();
 
-/**
- * GET /api/journals/:username
- * Fetch all journals of a user by username
- */
-router.get("/:username", async (req: Request, res: Response) => {
+router.get("/:username", authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const { username } = req.params;
     const user = await prisma.user.findUnique({
@@ -30,33 +27,20 @@ router.get("/:username", async (req: Request, res: Response) => {
   }
 });
 
-/**
- * POST /api/journals
- * Create or update a journal entry
- * Body: { username, date, color, content }
- */
-router.post("/", async (req: Request, res: Response) => {
+router.post("/", authenticate, async (req: AuthRequest, res: Response) => {
   try {
-    const { username, date, color, content, isPrivate } = req.body;
-
-    // Find user by username
-    const user = await prisma.user.findUnique({
-      where: { username },
-    });
-
-    if (!user) {
-      return res.status(404).json({ error: "User not found" });
-    }
+    const userId = req.userId!;
+    const { date, color, content, isPrivate } = req.body;
 
     const journal = await prisma.journal.upsert({
       where: {
         userId_date: {
-          userId: user.id,
+          userId: userId,
           date: new Date(date),
         },
       },
       update: { color, content, isPrivate },
-      create: { userId: user.id, date: new Date(date), color, content, isPrivate },
+      create: { userId: userId, date: new Date(date), color, content, isPrivate },
     });
 
     res.json(journal);
