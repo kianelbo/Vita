@@ -2,6 +2,7 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { Router, Request, Response } from "express";
 import { prisma } from "../prisma/client";
+import { authenticate, AuthRequest } from "../middleware/auth";
 
 const JWT_SECRET = process.env.JWT_SECRET as string;
 const JWT_EXPIRES_IN = "7d";
@@ -78,5 +79,27 @@ router.post("/login", async (req: Request, res: Response) => {
     res.status(500).json({ error: "Login failed" });
   }
 });
+
+router.get('/me', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.userId) return res.status(401).json({ message: 'Unauthorized' })
+
+    const user = await prisma.user.findUnique({
+      where: { id: req.userId },
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        isPrivate: true
+      }
+    })
+
+    if (!user) return res.status(404).json({ message: 'User not found' })
+    res.json(user)
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ message: 'Server error' })
+  }
+})
 
 export default router;
