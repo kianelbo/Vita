@@ -13,10 +13,9 @@ const error = ref('')
 async function handleRegister() {
   try {
     await auth.register(email.value, username.value, password.value)
-    router.push('/')
+    router.push(`/${auth.user?.username}`)
   } catch (e: any) {
-    console.log(e);
-    error.value = e?.response?.data?.message || 'Registration failed'
+    error.value = e?.response?.data?.error || 'Registration failed'
   }
 }
 </script>

@@ -12,9 +12,9 @@ const error = ref('')
 async function handleLogin() {
   try {
     await auth.login(emailOrUsername.value, password.value)
-    router.push('/')
+    router.push(`/${auth.user?.username}`)
   } catch (e: any) {
-    error.value = e?.response?.data?.message || 'Login failed'
+    error.value = e?.response?.data?.error || 'Login failed'
   }
 }
 </script>
