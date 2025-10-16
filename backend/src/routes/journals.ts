@@ -15,16 +15,34 @@ router.get("/:username", authenticate, async (req: AuthRequest, res: Response) =
       return res.status(404).json({ error: "User not found" });
     }
 
-    const journals = await prisma.journal.findMany({
-      where: { userId: user.id },
-      orderBy: { date: "asc" },
-    });
+    const year = parseInt(req.query.year as string, 10) || new Date().getFullYear()
+    const entries = await prisma.journal.findMany({
+      where: {
+        user: { username },
+        date: {
+          gte: new Date(`${year}-01-01`),
+          lt: new Date(`${year + 1}-01-01`)
+        }
+      },
+      select: { date: true, color: true, content: true, isPrivate: true }
+    })
 
-    res.json(journals);
+    const formatted = entries.map(e => ({
+      ...e,
+      date: e.date.toISOString().slice(0, 10)
+    }))
+    res.json(formatted);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to fetch journals" });
+    res.status(500).json({ error: err });
   }
+});
+
+router.get('/:username/years', async (req: AuthRequest, res: Response) => {
+  const { username } = req.params;
+
+  const years = [2025, 2024, 2023];
+  res.json(years);
 });
 
 router.post("/", authenticate, async (req: AuthRequest, res: Response) => {

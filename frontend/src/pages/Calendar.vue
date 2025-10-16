@@ -1,75 +1,97 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import api from '../api/axios' // your axios instance (baseURL set)
+import { useRoute } from 'vue-router'
+import api from '../api/axios'
 import { useAuthStore } from '../store/auth'
 
 const route = useRoute()
-const router = useRouter()
-const username = (route.params.username || '') as string
+const username = route.params.username as string
 const auth = useAuthStore()
+const isOwner = computed(() => auth.user?.username === username)
 
+const years = ref<number[]>([])
+const selectedYear = ref<number>(new Date().getFullYear())
 const days = ref<any[]>([])
-const offset = ref(0)
-const limit = 1000
-const loading = ref(false)
-const loadingMore = ref(false)
 
-/** Modal state */
 const showModal = ref(false)
 const selectedDay = ref<any | null>(null)
 const modalDialog = ref<HTMLElement | null>(null)
 
-const calendarGrid = ref<HTMLElement | null>(null)
+type JournalEntry = {
+  date: string            // 'YYYY-MM-DD'
+  isPrivate?: boolean
+  content?: string | null
+  color?: string
+}
 
-const isOwner = computed(() => auth.user?.username === username)
+const defaultDayColor = '#e9ecef'
 
-// Format tile tooltip/title
+function generateDaysOfYear(year: number) {
+  const days: any[] = []
+  const start = new Date(year, 0, 1)
+  const end = new Date(year + 1, 0, 1)
+  for (let d = new Date(start); d < end; d.setDate(d.getDate() + 1)) {
+    const iso = d.toISOString().split('T')[0]
+    days.push({
+      date: iso,
+      hasEntry: false,
+      isPrivate: false,
+      journal: null,
+      color: defaultDayColor
+    })
+  }
+  return days
+}
+
 function tileTitle(day: any) {
-  if (!day) return ''
-  if (day.hasEntry) return `${day.date} — entry${day.isPrivate ? ' (private)' : ''}`
+  if (day.hasEntry) return `${day.date}${day.isPrivate ? ' (private)' : ''}`
   return `${day.date} — no entry`
 }
 
-// Fetch a page of days
-async function fetchDays() {
-  if (loading.value) return
-  loading.value = true
-  if (offset.value > 0) loadingMore.value = true
-
-  try {
-    // Backend endpoint: GET /api/users/:username/calendar?offset=0&limit=1000
-    const res = await api.get(`/journals/${username}`, {
-      params: { offset: offset.value, limit }
-    })
-
-    // Expect res.data to be an array of objects:
-    // { date: 'YYYY-MM-DD', hasEntry: boolean, isPrivate: boolean, journal: string | null, color?: string }
-    const mapped = res.data.map((d: any) => ({
-      ...d,
-      // If backend supplies a color use it, otherwise derive:
-      color: d.color || (d.hasEntry ? (d.isPrivate ? '#6c757d' : '#198754') : '#e9ecef')
-    }))
-
-    // Append older days to the end (we load newest first, so this extends history)
-    days.value.push(...mapped)
-    offset.value += mapped.length
-  } catch (err) {
-    console.error('Failed to fetch days', err)
-  } finally {
-    loading.value = false
-    loadingMore.value = false
+async function fetchYears() {
+  const res = await api.get(`/journals/${username}/years`)
+  years.value = res.data
+  if (years.value.length > 0) {
+    selectedYear.value = years.value[0] as number
   }
+}
+
+async function fetchYearEntries() {
+  const year = selectedYear.value
+  const res = await api.get(`/journals/${username}`, { params: { year } })
+  console.log(res)
+
+  const entries = res.data as JournalEntry[]
+
+  const yearDays = generateDaysOfYear(year)
+
+  const entryMap = new Map<string, JournalEntry>()
+  for (const e of entries) {
+    if (e?.date) entryMap.set(e.date, e)
+  }
+
+  for (const day of yearDays) {
+    const e = entryMap.get(day.date)
+    if (e) {
+      day.hasEntry = true
+      day.isPrivate = !!e.isPrivate
+      day.content = e.content ?? null
+      day.color = e.color ?? (e.isPrivate ? '#6c757d' : '#198754')
+    } else {
+      day.hasEntry = false
+      day.isPrivate = false
+      day.content = null
+      day.color = defaultDayColor
+    }
+  }
+
+  days.value = yearDays
 }
 
 function openModal(day: any) {
   selectedDay.value = day
   showModal.value = true
-
-  // Focus modal dialog for accessibility
-  setTimeout(() => {
-    modalDialog.value?.focus()
-  }, 0)
+  modalDialog.value?.focus()
 }
 
 function closeModal() {
@@ -77,37 +99,25 @@ function closeModal() {
   selectedDay.value = null
 }
 
-/** Edit handler stub — you can implement real editing UI later */
-function editDay(day: any) {
-  // if owner, route to a day editor or toggle an edit form
-  if (isOwner.value) {
-    router.push({ path: `/${username}/edit`, query: { date: day.date } })
-  }
-}
-
-/** Infinite scroll handler: when scrolled to bottom, fetch more */
-function onScroll() {
-  const el = calendarGrid.value
-  if (!el || loading.value) return
-  const threshold = 100 // px from bottom
-  if (el.scrollTop + el.clientHeight >= el.scrollHeight - threshold) {
-    fetchDays()
-  }
-}
-
 onMounted(async () => {
-  await fetchDays()
+  await fetchYears()
+  if (years.value.length > 0) await fetchYearEntries()
 })
 </script>
 
 <template>
   <div class="container mt-4">
-    <h2 class="mb-3">@{{ username }}'s Journal</h2>
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h2>@{{ username }}'s Journal</h2>
+
+      <select v-model="selectedYear" @change="fetchYearEntries" class="form-select w-auto">
+        <option v-for="y in years" :key="y" :value="y">{{ y }}</option>
+      </select>
+    </div>
 
     <div
       ref="calendarGrid"
       class="calendar-grid"
-      @scroll="onScroll"
       role="list"
       aria-label="Journal calendar"
     >
@@ -123,34 +133,23 @@ onMounted(async () => {
         @keydown.enter.prevent="openModal(day)"
         @keydown.space.prevent="openModal(day)"
       ></div>
-
-      <div v-if="loadingMore" class="loading-indicator">Loading...</div>
     </div>
 
-    <!-- Pure-Vue Modal -->
+    <!-- Modal -->
     <div v-if="showModal" class="modal-backdrop" @click.self="closeModal" role="dialog" aria-modal="true">
-      <div class="modal-dialog modal-centered" role="document" @keydown.esc="closeModal" tabindex="-1" ref="modalDialog">
+      <div class="modal-dialog modal-centered" tabindex="-1" ref="modalDialog">
         <div class="modal-content p-3">
           <div class="d-flex justify-content-between align-items-start">
             <h5 class="modal-title mb-0">{{ selectedDay?.date }}</h5>
-            <button class="btn-close" @click="closeModal" aria-label="Close"></button>
+            <button class="btn-close" @click="closeModal"></button>
           </div>
 
           <div class="modal-body mt-3">
             <p v-if="selectedDay?.isPrivate && !isOwner" class="text-muted">
               🔒 This entry is private.
             </p>
-
-            <div v-else>
-              <p v-if="selectedDay?.journal">{{ selectedDay.journal }}</p>
-              <p v-else class="text-muted">No entry for this day.</p>
-            </div>
-          </div>
-
-          <div class="modal-footer d-flex justify-content-end">
-            <button class="btn btn-secondary" @click="closeModal">Close</button>
-            <!-- Optionally: edit button if owner -->
-            <button v-if="isOwner" class="btn btn-primary ms-2" @click="editDay(selectedDay)">Edit</button>
+            <p v-else-if="selectedDay?.journal">{{ selectedDay.journal }}</p>
+            <p v-else class="text-muted">No entry for this day.</p>
           </div>
         </div>
       </div>
@@ -161,18 +160,13 @@ onMounted(async () => {
 <style scoped>
 .calendar-grid {
   display: grid;
-  /* GitHub-like week columns: 7 rows by many columns can be achieved differently,
-     but here we keep a responsive horizontal flow. You can rewrite later to a weekly layout. */
   grid-template-columns: repeat(auto-fill, 14px);
   gap: 6px;
   max-height: 520px;
   overflow-y: auto;
   border: 1px solid #dee2e6;
   padding: 8px;
-  align-items: start;
 }
-
-/* Small square tiles */
 .calendar-tile {
   width: 14px;
   height: 14px;
@@ -185,16 +179,6 @@ onMounted(async () => {
   outline: 2px solid rgba(0,123,255,0.5);
   outline-offset: 2px;
 }
-
-/* Basic loading indicator */
-.loading-indicator {
-  grid-column: 1/-1;
-  text-align: center;
-  padding: 8px;
-  color: #6c757d;
-}
-
-/* Modal backdrop */
 .modal-backdrop {
   position: fixed;
   inset: 0;
@@ -204,25 +188,16 @@ onMounted(async () => {
   justify-content: center;
   z-index: 1050;
 }
-
-/* Modal dialog */
 .modal-dialog {
   width: 90%;
   max-width: 620px;
   outline: none;
-}
-.modal-centered {
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 .modal-content {
   background: #fff;
   border-radius: .375rem;
   box-shadow: 0 10px 25px rgba(0,0,0,0.2);
 }
-
-/* small utility */
 .btn-close {
   appearance: none;
   border: none;
