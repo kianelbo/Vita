@@ -137,7 +137,7 @@ onMounted(async () => {
       :content="selectedDay?.content || null"
       :isPrivate="selectedDay?.isPrivate || false"
       :isOwner="isOwner"
-      :activeColor="selectedDay?.color || defaultDayColor"
+      :color="selectedDay?.color || defaultDayColor"
       :username="username"
       @refresh="fetchYearEntries"
     />

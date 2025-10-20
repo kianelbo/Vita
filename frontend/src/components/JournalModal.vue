@@ -8,7 +8,7 @@ interface Props {
   content: string | null
   isPrivate: boolean
   isOwner: boolean
-  activeColor: string
+  color: string
   username: string
 }
 
@@ -17,9 +17,11 @@ const emit = defineEmits(['update:modelValue', 'refresh'])
 
 const journalText = ref(props.content ?? '')
 const isPrivateLocal = ref(props.isPrivate)
+const colorLocal = ref(props.color)
 
 watch(() => props.content, v => (journalText.value = v ?? ''))
 watch(() => props.isPrivate, v => (isPrivateLocal.value = v))
+watch(() => props.color, (newColor) => (colorLocal.value = newColor), { immediate: true })
 
 function closeModal() {
   emit('update:modelValue', false)
@@ -31,7 +33,7 @@ async function saveEntry() {
     await api.post(`/journals`, {
       date: props.selectedDate,
       content: journalText.value,
-      color: "#42f563",
+      color: colorLocal.value,
       isPrivate: isPrivateLocal.value
     })
     emit('refresh')
@@ -56,9 +58,9 @@ async function saveEntry() {
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content border-0">
 
-        <div class="modal-header text-white" :style="{ backgroundColor: activeColor }">
+        <div class="modal-header border-0 pb-0">
           <h5 class="modal-title">{{ selectedDate }}</h5>
-          <button type="button" class="btn-close btn-close-white" @click="closeModal"></button>
+          <button type="button" class="btn-close" @click="closeModal"></button>
         </div>
 
         <div class="modal-body">
@@ -72,23 +74,40 @@ async function saveEntry() {
               v-model="journalText"
               class="form-control mb-2"
               rows="6"
-              placeholder="Write your thoughts..."
+              :readonly="!isOwner"
+              :placeholder="isOwner ? 'Write your thoughts...' : 'No entry!'"
             ></textarea>
 
-            <div class="d-flex justify-content-between align-items-center">
-              <div class="form-check m-0">
+            <div class="modal-footer justify-content-between" v-if="isOwner">
+              <div class="d-flex align-items-center gap-3">
+                <div class="form-check m-0">
+                  <input
+                    class="form-check-input"
+                    type="checkbox"
+                    id="privateCheck"
+                    v-model="isPrivateLocal"
+                  />
+                  <label class="form-check-label" for="privateCheck">
+                    Private
+                  </label>
+                </div>
+
                 <input
-                  class="form-check-input"
-                  type="checkbox"
-                  v-model="isPrivateLocal"
-                  id="privateCheck"
+                  type="color"
+                  v-model="colorLocal"
+                  title="Pick a color"
+                  style="width: 40px; height: 35px; padding: 0; background: none;"
                 />
-                <label class="form-check-label" for="privateCheck">
-                  Private
-                </label>
               </div>
 
-              <button v-if="isOwner" type="button" class="btn btn-outline-primary" @click="saveEntry">Save</button>
+              <button
+                type="button"
+                class="btn btn-outline-primary"
+                @click="saveEntry"
+                :disabled="!isOwner"
+              >
+                Save
+              </button>
             </div>
           </div>
         </div>
