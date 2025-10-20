@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import api from '../api/axios'
 import { useAuthStore } from '../store/auth'
+import JournalModal from '../components/JournalModal.vue'
 
 const route = useRoute()
 const username = route.params.username as string
@@ -94,11 +95,6 @@ function openModal(day: any) {
   modalDialog.value?.focus()
 }
 
-function closeModal() {
-  showModal.value = false
-  selectedDay.value = null
-}
-
 onMounted(async () => {
   await fetchYears()
   if (years.value.length > 0) await fetchYearEntries()
@@ -135,25 +131,16 @@ onMounted(async () => {
       ></div>
     </div>
 
-    <!-- Modal -->
-    <div v-if="showModal" class="modal-backdrop" @click.self="closeModal" role="dialog" aria-modal="true">
-      <div class="modal-dialog modal-centered" tabindex="-1" ref="modalDialog">
-        <div class="modal-content p-3">
-          <div class="d-flex justify-content-between align-items-start">
-            <h5 class="modal-title mb-0">{{ selectedDay?.date }}</h5>
-            <button class="btn-close" @click="closeModal"></button>
-          </div>
-
-          <div class="modal-body mt-3">
-            <p v-if="selectedDay?.isPrivate && !isOwner" class="text-muted">
-              🔒 This entry is private.
-            </p>
-            <p v-else-if="selectedDay?.journal">{{ selectedDay.journal }}</p>
-            <p v-else class="text-muted">No entry for this day.</p>
-          </div>
-        </div>
-      </div>
-    </div>
+    <JournalModal
+      v-model="showModal"
+      :selectedDate="selectedDay?.date || null"
+      :content="selectedDay?.content || null"
+      :isPrivate="selectedDay?.isPrivate || false"
+      :isOwner="isOwner"
+      :activeColor="selectedDay?.color || defaultDayColor"
+      :username="username"
+      @refresh="fetchYearEntries"
+    />
   </div>
 </template>
 
