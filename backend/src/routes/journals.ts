@@ -50,6 +50,20 @@ router.post("/", authenticate, async (req: AuthRequest, res: Response) => {
     const userId = req.userId!;
     const { date, color, content, isPrivate } = req.body;
 
+    const journalDate = new Date(date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const threeDaysAgo = new Date();
+    threeDaysAgo.setDate(today.getDate() - 3);
+    threeDaysAgo.setHours(0, 0, 0, 0);
+
+    if (journalDate > today) {
+      return res.status(400).json({ error: "Cannot set journal for a future date" });
+    }
+    if (journalDate < threeDaysAgo) {
+      return res.status(400).json({ error: "Cannot set journal for a date older than 3 days" });
+    }
+
     const journal = await prisma.journal.upsert({
       where: {
         userId_date: {

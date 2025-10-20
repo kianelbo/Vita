@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import api from '../api/axios'
 
 interface Props {
@@ -26,6 +26,24 @@ watch(() => props.color, (newColor) => (colorLocal.value = newColor), { immediat
 function closeModal() {
   emit('update:modelValue', false)
 }
+
+const isDateEditable = computed(() => {
+  const today = new Date()
+  const selected = new Date(props.selectedDate as string)
+
+  today.setHours(0, 0, 0, 0)
+  selected.setHours(0, 0, 0, 0)
+
+  const diffDays = Math.floor((today.getTime() - selected.getTime()) / (1000 * 60 * 60 * 24))
+  // ✅ Editable only if date is not in the future and not older than 3 days
+  return diffDays >= 0 && diffDays <= 3
+})
+
+const canSave = computed(() => {
+  if (!props.isOwner) return false
+  if (isDateEditable.value) return true
+  return !!props.content
+})
 
 async function saveEntry() {
   if (!props.selectedDate) return
@@ -74,8 +92,8 @@ async function saveEntry() {
               v-model="journalText"
               class="form-control mb-2"
               rows="6"
-              :readonly="!isOwner"
-              :placeholder="isOwner ? 'Write your thoughts...' : 'No entry!'"
+              :readonly="!isOwner || !isDateEditable"
+              :placeholder="isOwner && isDateEditable ? 'Write your thoughts...' : 'No entry!'"
             ></textarea>
 
             <div class="modal-footer justify-content-between" v-if="isOwner">
@@ -96,6 +114,7 @@ async function saveEntry() {
                   type="color"
                   v-model="colorLocal"
                   title="Pick a color"
+                  :disabled="!isOwner || !isDateEditable"
                   style="width: 40px; height: 35px; padding: 0; background: none;"
                 />
               </div>
@@ -104,7 +123,7 @@ async function saveEntry() {
                 type="button"
                 class="btn btn-outline-primary"
                 @click="saveEntry"
-                :disabled="!isOwner"
+                :disabled="!canSave"
               >
                 Save
               </button>

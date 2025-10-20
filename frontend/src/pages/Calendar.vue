@@ -12,7 +12,7 @@ const isOwner = computed(() => auth.user?.username === username)
 
 const years = ref<number[]>([])
 const selectedYear = ref<number>(new Date().getFullYear())
-const days = ref<any[]>([])
+const days = ref<JournalEntry[]>([])
 
 const showModal = ref(false)
 const selectedDay = ref<any | null>(null)
@@ -20,24 +20,31 @@ const modalDialog = ref<HTMLElement | null>(null)
 
 type JournalEntry = {
   date: string            // 'YYYY-MM-DD'
+  hasEntry?: boolean
   isPrivate?: boolean
   content?: string | null
   color?: string
 }
 
 const defaultDayColor = '#e9ecef'
+const today = new Date()
+today.setHours(0, 0, 0, 0)
 
-function generateDaysOfYear(year: number) {
-  const days: any[] = []
+function isFuture(d: string) {
+  return new Date(d).getTime() > today.getTime()
+}
+
+function generateDaysOfYear(year: number) : JournalEntry[] {
+  const days: JournalEntry[] = []
   const start = new Date(year, 0, 1)
   const end = new Date(year + 1, 0, 1)
   for (let d = new Date(start); d < end; d.setDate(d.getDate() + 1)) {
-    const iso = d.toISOString().split('T')[0]
+    const iso = d.toISOString().split('T')[0] || ""
     days.push({
       date: iso,
       hasEntry: false,
       isPrivate: false,
-      journal: null,
+      content: null,
       color: defaultDayColor
     })
   }
@@ -121,8 +128,12 @@ onMounted(async () => {
         v-for="day in days"
         :key="day.date"
         class="calendar-tile"
-        :style="{ backgroundColor: day.color }"
-        @click="openModal(day)"
+        :style="{
+          backgroundColor: day.color,
+          cursor: isFuture(day.date) ? 'not-allowed' : 'pointer',
+          opacity: isFuture(day.date) ? 0.5 : 1
+        }"
+        @click="!isFuture(day.date) && openModal(day)"
         :title="tileTitle(day)"
         role="listitem"
         tabindex="0"
