@@ -39,10 +39,32 @@ router.get("/:username", authenticate, async (req: AuthRequest, res: Response) =
 });
 
 router.get('/:username/years', async (req: AuthRequest, res: Response) => {
-  const { username } = req.params;
+  try {
+    const { username } = req.params;
+    const user = await prisma.user.findUnique({
+      where: { username },
+      select: { id: true },
+    });
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
 
-  const years = [2025, 2024, 2023];
-  res.json(years);
+    const result: { year: number }[] = await prisma.$queryRaw`
+      SELECT DISTINCT EXTRACT(YEAR FROM "date") AS year
+      FROM "Journal"
+      WHERE "userId" = ${user.id}
+      ORDER BY year DESC
+    `;
+
+    const years = result.map(r => Number(r.year));
+    
+    const currentYear = new Date().getFullYear()
+    if (!years.includes(currentYear)) years.unshift(currentYear)
+
+    res.json(years);
+  } catch (err) {
+    res.status(500).json({ error: err });
+  }
 });
 
 router.post("/", authenticate, async (req: AuthRequest, res: Response) => {

@@ -10,8 +10,8 @@ const username = route.params.username as string
 const auth = useAuthStore()
 const isOwner = computed(() => auth.user?.username === username)
 
-const years = ref<number[]>([])
 const selectedYear = ref<number>(new Date().getFullYear())
+const years = ref<number[]>([selectedYear.value])
 const days = ref<JournalEntry[]>([])
 
 const showModal = ref(false)
@@ -51,7 +51,7 @@ function generateDaysOfYear(year: number) : JournalEntry[] {
   return days
 }
 
-function tileTitle(day: any) {
+function tileTitle(day: JournalEntry) {
   if (day.hasEntry) return `${day.date}${day.isPrivate ? ' (private)' : ''}`
   return `${day.date} — no entry`
 }
@@ -59,9 +59,10 @@ function tileTitle(day: any) {
 async function fetchYears() {
   const res = await api.get(`/journals/${username}/years`)
   years.value = res.data
-  if (years.value.length > 0) {
-    selectedYear.value = years.value[0] as number
-  }
+  // const { oldestYear } = res.data
+  // const years: number[] = []
+  // for (let y = currentYear; y >= oldestYear ; y--)
+  //   years.push(y)
 }
 
 async function fetchYearEntries() {
@@ -96,15 +97,15 @@ async function fetchYearEntries() {
   days.value = yearDays
 }
 
-function openModal(day: any) {
+function openModal(day: JournalEntry) {
   selectedDay.value = day
   showModal.value = true
   modalDialog.value?.focus()
 }
 
 onMounted(async () => {
-  await fetchYears()
-  if (years.value.length > 0) await fetchYearEntries()
+  await fetchYearEntries()
+  fetchYears()
 })
 </script>
 

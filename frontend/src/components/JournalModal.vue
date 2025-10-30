@@ -35,7 +35,7 @@ const isDateEditable = computed(() => {
   selected.setHours(0, 0, 0, 0)
 
   const diffDays = Math.floor((today.getTime() - selected.getTime()) / (1000 * 60 * 60 * 24))
-  // ✅ Editable only if date is not in the future and not older than 3 days
+
   return diffDays >= 0 && diffDays <= 3
 })
 
